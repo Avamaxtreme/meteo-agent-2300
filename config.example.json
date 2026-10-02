@@ -1,0 +1,8 @@
+{
+    "lat": 43.6418,
+    "lon": 40.2628,
+    "altitude": 2300,
+    "location_name": "Снеголавинный пост Горная Карусель",
+    "meteoblue_api_key": "ВСТАВЬТЕ_СВОЙ_КЛЮЧ_METEOBLUE",
+    "gemini_api_key": "ВСТАВЬТЕ_СВОЙ_КЛЮЧ_GEMINI"
+}

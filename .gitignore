@@ -1,0 +1,30 @@
+# Виртуальное окружение Python
+.venv/
+venv/
+env/
+ENV/
+
+# Секреты
+config.json
+.env
+*.key
+secrets.*
+
+# Данные
+history/
+facts/
+downloads/
+*.png
+*.jpg
+
+# Кэши Python
+__pycache__/
+*.pyc
+modules/__pycache__/
+
+# Системные
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/
