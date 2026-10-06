@@ -24,8 +24,6 @@ if os.path.exists("config.json"):
     with open("config.json", "r", encoding="utf-8") as f:
         CONFIG = json.load(f)
 else:
-    # В облаке читаем из Streamlit Secrets.
-    # Задайте их в share.streamlit.io → Settings → Secrets в формате TOML.
     try:
         CONFIG = {
             "location_name": st.secrets.get("location_name", "Горная Карусель"),
@@ -60,23 +58,18 @@ if "ui_theme" not in st.session_state:
 
 
 def _inject_css(theme: str):
-    """Инжектит CSS в зависимости от выбранной темы."""
     if theme == "dark":
         css = """
         <style>
             .stApp { background-color: #0e1117; color: #e8eaed; }
-            section[data-testid="stSidebar"] {
-                background-color: #1a1d24;
-            }
+            section[data-testid="stSidebar"] { background-color: #1a1d24; }
             section[data-testid="stSidebar"] * { color: #e8eaed; }
             .stButton > button {
-                background-color: #1c2733;
-                color: #e8eaed;
+                background-color: #1c2733; color: #e8eaed;
                 border: 1px solid #4fa3f0;
             }
             .stButton > button:hover {
-                background-color: #2a3a4a;
-                border-color: #6ec1ff;
+                background-color: #2a3a4a; border-color: #6ec1ff;
             }
             .stExpander {
                 background-color: #1a1d24 !important;
@@ -90,76 +83,51 @@ def _inject_css(theme: str):
                 background: linear-gradient(90deg, #4fa3f0 0%, #4caf50 100%);
                 -webkit-background-clip: text;
                 -webkit-text-fill-color: transparent;
-                font-size: 2.4rem;
-                font-weight: 800;
-                margin-bottom: 0;
-                padding-bottom: 0;
+                font-size: 2.4rem; font-weight: 800;
+                margin-bottom: 0; padding-bottom: 0;
             }
             .subtitle {
-                color: #4fa3f0;
-                font-size: 1.7rem;
-                font-weight: 700;
-                margin-top: 0.3rem;
-                margin-bottom: 1.6rem;
-                padding-left: 0.8rem;
-                border-left: 5px solid #4caf50;
+                color: #4fa3f0; font-size: 1.7rem; font-weight: 700;
+                margin-top: 0.3rem; margin-bottom: 1.6rem;
+                padding-left: 0.8rem; border-left: 5px solid #4caf50;
                 letter-spacing: 0.2px;
             }
             .source-badge {
-                display: inline-block;
-                padding: 0.4rem 0.8rem;
-                border-radius: 0.5rem;
-                font-size: 0.85rem;
-                font-weight: 600;
-                margin-right: 0.5rem;
+                display: inline-block; padding: 0.4rem 0.8rem;
+                border-radius: 0.5rem; font-size: 0.85rem;
+                font-weight: 600; margin-right: 0.5rem;
             }
             .badge-ok   { background: #1e3a24; color: #6ee787; }
             .badge-err  { background: #3a1e1e; color: #ff7b72; }
             .badge-warn { background: #3a331e; color: #ffd866; }
             .horizon-card {
-                background: #1a1d24;
-                border-radius: 0.7rem;
-                padding: 1rem;
-                margin-bottom: 0.8rem;
-                border-left: 4px solid #4fa3f0;
-                color: #e8eaed;
+                background: #1a1d24; border-radius: 0.7rem;
+                padding: 1rem; margin-bottom: 0.8rem;
+                border-left: 4px solid #4fa3f0; color: #e8eaed;
             }
             .synoptic-box {
-                background: #1c2733;
-                border-left: 4px solid #4fa3f0;
-                padding: 0.9rem 1.1rem;
-                border-radius: 0.5rem;
-                font-size: 0.95rem;
-                line-height: 1.55;
-                color: #dbe4ee;
+                background: #1c2733; border-left: 4px solid #4fa3f0;
+                padding: 0.9rem 1.1rem; border-radius: 0.5rem;
+                font-size: 0.95rem; line-height: 1.55; color: #dbe4ee;
             }
             .chart-title {
-                font-size: 1.2rem;
-                font-weight: 700;
-                color: #4fa3f0;
-                margin-top: 1rem;
-                margin-bottom: 0.5rem;
+                font-size: 1.2rem; font-weight: 700; color: #4fa3f0;
+                margin-top: 1rem; margin-bottom: 0.5rem;
             }
             .temp-warm { color: #ff6b6b; font-weight: 700; }
             .temp-cold { color: #4fa3f0; font-weight: 700; }
             .temp-zero { color: #9aa0a6; font-weight: 700; }
 
             .temp-card {
-                border-radius: 0.6rem;
-                padding: 0.7rem 0.4rem;
-                text-align: center;
-                margin-bottom: 0.6rem;
+                border-radius: 0.6rem; padding: 0.7rem 0.4rem;
+                text-align: center; margin-bottom: 0.6rem;
             }
             .temp-card .label {
-                font-size: 0.75rem;
-                color: #9aa0a6;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
+                font-size: 0.75rem; color: #9aa0a6;
+                text-transform: uppercase; letter-spacing: 0.5px;
             }
             .temp-card .value {
-                font-size: 1.5rem;
-                font-weight: 800;
-                margin-top: 0.2rem;
+                font-size: 1.5rem; font-weight: 800; margin-top: 0.2rem;
             }
             .temp-card.warm { background: #3a1f1f; border-left: 3px solid #ff6b6b; }
             .temp-card.cold { background: #1c2733; border-left: 3px solid #4fa3f0; }
@@ -176,74 +144,51 @@ def _inject_css(theme: str):
                 background: linear-gradient(90deg, #1e88e5 0%, #43a047 100%);
                 -webkit-background-clip: text;
                 -webkit-text-fill-color: transparent;
-                font-size: 2.4rem;
-                font-weight: 800;
-                margin-bottom: 0;
-                padding-bottom: 0;
+                font-size: 2.4rem; font-weight: 800;
+                margin-bottom: 0; padding-bottom: 0;
             }
             .subtitle {
-                color: #1e88e5;
-                font-size: 1.7rem;
-                font-weight: 700;
-                margin-top: 0.3rem;
-                margin-bottom: 1.6rem;
-                padding-left: 0.8rem;
-                border-left: 5px solid #43a047;
+                color: #1e88e5; font-size: 1.7rem; font-weight: 700;
+                margin-top: 0.3rem; margin-bottom: 1.6rem;
+                padding-left: 0.8rem; border-left: 5px solid #43a047;
                 letter-spacing: 0.2px;
             }
             .source-badge {
-                display: inline-block;
-                padding: 0.4rem 0.8rem;
-                border-radius: 0.5rem;
-                font-size: 0.85rem;
-                font-weight: 600;
-                margin-right: 0.5rem;
+                display: inline-block; padding: 0.4rem 0.8rem;
+                border-radius: 0.5rem; font-size: 0.85rem;
+                font-weight: 600; margin-right: 0.5rem;
             }
             .badge-ok   { background: #d4edda; color: #155724; }
             .badge-err  { background: #f8d7da; color: #721c24; }
             .badge-warn { background: #fff3cd; color: #856404; }
             .horizon-card {
-                background: #f8f9fa;
-                border-radius: 0.7rem;
-                padding: 1rem;
-                margin-bottom: 0.8rem;
+                background: #f8f9fa; border-radius: 0.7rem;
+                padding: 1rem; margin-bottom: 0.8rem;
                 border-left: 4px solid #1e88e5;
             }
             .synoptic-box {
-                background: #e3f2fd;
-                border-left: 4px solid #1e88e5;
-                padding: 0.9rem 1.1rem;
-                border-radius: 0.5rem;
-                font-size: 0.95rem;
-                line-height: 1.55;
+                background: #e3f2fd; border-left: 4px solid #1e88e5;
+                padding: 0.9rem 1.1rem; border-radius: 0.5rem;
+                font-size: 0.95rem; line-height: 1.55;
             }
             .chart-title {
-                font-size: 1.2rem;
-                font-weight: 700;
-                color: #1e88e5;
-                margin-top: 1rem;
-                margin-bottom: 0.5rem;
+                font-size: 1.2rem; font-weight: 700; color: #1e88e5;
+                margin-top: 1rem; margin-bottom: 0.5rem;
             }
             .temp-warm { color: #e53935; font-weight: 700; }
             .temp-cold { color: #1e88e5; font-weight: 700; }
             .temp-zero { color: #757575; font-weight: 700; }
 
             .temp-card {
-                border-radius: 0.6rem;
-                padding: 0.7rem 0.4rem;
-                text-align: center;
-                margin-bottom: 0.6rem;
+                border-radius: 0.6rem; padding: 0.7rem 0.4rem;
+                text-align: center; margin-bottom: 0.6rem;
             }
             .temp-card .label {
-                font-size: 0.75rem;
-                color: #666;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
+                font-size: 0.75rem; color: #666;
+                text-transform: uppercase; letter-spacing: 0.5px;
             }
             .temp-card .value {
-                font-size: 1.5rem;
-                font-weight: 800;
-                margin-top: 0.2rem;
+                font-size: 1.5rem; font-weight: 800; margin-top: 0.2rem;
             }
             .temp-card.warm { background: #ffebee; border-left: 3px solid #e53935; }
             .temp-card.cold { background: #e3f2fd; border-left: 3px solid #1e88e5; }
@@ -258,7 +203,6 @@ def _inject_css(theme: str):
 
 _inject_css(st.session_state["ui_theme"])
 
-# Палитра для графиков Altair — зависит от темы
 if st.session_state["ui_theme"] == "dark":
     _chart_bg = "#0e1117"
     _chart_text = "#e8eaed"
@@ -321,11 +265,8 @@ def extract_number(text, pattern, default=0.0):
 
 def precip_icon(precip_type):
     return {
-        "снег": "❄️",
-        "дождь": "🌧️",
-        "смешанные": "🌨️",
-        "нет": "☀️",
-        "нет данных": "❔",
+        "снег": "❄️", "дождь": "🌧️", "смешанные": "🌨️",
+        "нет": "☀️", "нет данных": "❔",
     }.get(precip_type, "🌦️")
 
 
@@ -365,7 +306,6 @@ def temp_card(label: str, value: float) -> str:
 
 
 def _parse_time(t):
-    """Безопасный парсинг времени из любого источника."""
     if t is None:
         return None
     s = str(t).strip()
@@ -446,7 +386,6 @@ TEST_MODE = False
 
 
 def _slr(temp_c):
-    """Snow-to-Liquid Ratio: см снега на 1 мм осадков (по T)."""
     if temp_c is None:
         return 1.0
     if temp_c < -10:
@@ -464,7 +403,6 @@ def _slr(temp_c):
 
 
 def snow_warning_line(df_src, threshold_cm=25.0):
-    """Возвращает строку-предупреждение о накоплении снега выше порога."""
     if df_src.empty:
         return None
 
@@ -700,7 +638,6 @@ def render_multi_source_charts(df):
 # Боковая панель (сокращённая)
 # ============================================================
 with st.sidebar:
-    # --- Заглушки, чтобы код ниже не сломался ---
     save_btn = False
     load_facts_btn = False
     calibrate_btn = False
@@ -710,7 +647,6 @@ with st.sidebar:
     total_w = 100
     st.session_state["snow_threshold_cm"] = 25
 
-    # --- Переключатель темы ---
     st.markdown("### 🎨 Тема")
     _theme_options = ["Светлая", "Тёмная"]
     _theme_idx = 0 if st.session_state["ui_theme"] == "light" else 1
@@ -729,7 +665,6 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # --- Кнопка «Собрать и проанализировать» ---
     st.markdown("### ⚙️ Управление")
     run_btn = st.button(
         "🔄 Собрать и проанализировать",
@@ -739,7 +674,6 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # --- Строка с весами ---
     w_yr, w_mb, w_om = load_weights()
     st.caption(
         f"Веса: yr.no {w_yr:.2f} · meteoblue {w_mb:.2f} · Open-Meteo {w_om:.2f}"
@@ -747,7 +681,6 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # --- Точка прогноза ---
     st.markdown("### 📍 Точка прогноза")
     st.markdown(f"**{CONFIG['location_name']}**")
     st.caption(
@@ -758,7 +691,6 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # --- Источники ---
     st.markdown("### 📡 Источники")
     st.markdown(
         "- **yr.no** — MET Norway, 1 км\n"
@@ -955,61 +887,6 @@ if st.session_state.get("run"):
                 yr_data, mb_data, om_data, hours_ahead=60
             )
             render_multi_source_charts(df_chart)
-
-        st.markdown("---")
-        st.markdown("## 📊 Точность прогнозов")
-
-        with st.expander("📈 Отчёт по источникам", expanded=False):
-            report = accuracy_report()
-            if not report or all(r["n"] == 0 for r in report.values()):
-                st.info(
-                    "ℹ️ Нет данных для отчёта. "
-                    "Положите CSV со станции в папку `facts/` и нажмите "
-                    "«📥 Загрузить факты» в боковой панели. "
-                    "Нужно 3+ дня фактов для значимого отчёта."
-                )
-            else:
-                for src, data in report.items():
-                    st.markdown(f"**{src}**")
-                    c1, c2, c3 = st.columns(3)
-                    c1.metric(
-                        "Ошибка T (MAE)",
-                        f"{data['temp_mae']}°C" if data['temp_mae'] is not None else "—"
-                    )
-                    c2.metric(
-                        "Ошибка осадков",
-                        f"{data['precip_mae']} мм" if data['precip_mae'] is not None else "—"
-                    )
-                    c3.metric("Сравнений", data['n'])
-
-        with st.expander("📅 Когда были осадки (по факту)", expanded=False):
-            facts_path = "history/facts.json"
-            if not os.path.exists(facts_path):
-                st.info("Нет данных о фактах. Загрузите CSV через боковую панель.")
-            else:
-                try:
-                    with open(facts_path, "r", encoding="utf-8") as f:
-                        facts = json.load(f)
-                except Exception:
-                    facts = {}
-
-                if not facts:
-                    st.info("Файл facts.json пуст.")
-                else:
-                    for date_str in sorted(facts.keys(), reverse=True)[:7]:
-                        fact = facts[date_str]
-                        intervals = fact.get("precip_intervals", [])
-                        total = fact.get("precip_total", 0.0)
-                        ptype = fact.get("precip_type", "—")
-
-                        if not intervals or total < 0.1:
-                            st.markdown(f"**{date_str}** — осадков не было")
-                            continue
-
-                        lines = [f"**{date_str}** — всего **{total} мм** ({ptype})"]
-                        for iv in intervals:
-                            lines.append(f"  · {iv['start']}–{iv['end']} — {iv['mm']} мм")
-                        st.markdown("  \n".join(lines))
 
     else:
         st.error("Не удалось собрать численные данные ни с одного источника.")
