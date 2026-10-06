@@ -18,52 +18,17 @@ from modules.history import (
 )
 
 # ============================================================
-# set_page_config — ДОЛЖЕН быть первым st.* вызовом
+# Конфиг
 # ============================================================
+with open("config.json", "r", encoding="utf-8") as f:
+    CONFIG = json.load(f)
+
 st.set_page_config(
     page_title="Метео-агент 2300м",
     page_icon="🏔️",
     layout="wide",
     initial_sidebar_state="expanded",
 )
-
-
-# ============================================================
-# Конфиг — локально из config.json, на облаке — из st.secrets
-# ============================================================
-def _load_config():
-    """
-    Приоритет:
-      1. config.json рядом с app.py (локальная разработка).
-      2. st.secrets (Streamlit Community Cloud / Hugging Face).
-    """
-    if os.path.exists("config.json"):
-        try:
-            with open("config.json", "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception as e:
-            st.warning(f"config.json найден, но не читается: {e}")
-
-    try:
-        cfg = {
-            "lat": float(st.secrets["lat"]),
-            "lon": float(st.secrets["lon"]),
-            "altitude": int(st.secrets["altitude"]),
-            "location_name": str(st.secrets["location_name"]),
-            "meteoblue_api_key": str(st.secrets["meteoblue_api_key"]),
-            "gemini_api_key": str(st.secrets["gemini_api_key"]),
-        }
-        return cfg
-    except Exception as e:
-        st.error(
-            "❌ Не найден config.json и не настроены st.secrets. "
-            f"Подробнее: {e}"
-        )
-        st.stop()
-
-
-CONFIG = _load_config()
-
 
 # ============================================================
 # ТЕМА: светлая / тёмная
@@ -78,7 +43,9 @@ def _inject_css(theme: str):
         css = """
         <style>
             .stApp { background-color: #0e1117; color: #e8eaed; }
-            section[data-testid="stSidebar"] { background-color: #1a1d24; }
+            section[data-testid="stSidebar"] {
+                background-color: #1a1d24;
+            }
             section[data-testid="stSidebar"] * { color: #e8eaed; }
             .stButton > button {
                 background-color: #1c2733;
@@ -732,9 +699,19 @@ if os.path.exists(_w_path):
 
 
 # ============================================================
-# Боковая панель
+# Боковая панель (сокращённая)
 # ============================================================
 with st.sidebar:
+    # --- Заглушки, чтобы код ниже в app.py не сломался ---
+    save_btn = False
+    load_facts_btn = False
+    calibrate_btn = False
+    temp_w = _default_t
+    precip_w = _default_p
+    norm_t, norm_p = _default_t / 100.0, _default_p / 100.0
+    total_w = _default_t + _default_p
+    st.session_state["snow_threshold_cm"] = _default_snow_cm
+
     # --- Переключатель темы ---
     st.markdown("### 🎨 Тема")
     _theme_options = ["Светлая", "Тёмная"]
@@ -753,6 +730,8 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
+
+    # --- Кнопка «Собрать и проанализировать» ---
     st.markdown("### ⚙️ Управление")
     run_btn = st.button(
         "🔄 Собрать и проанализировать",
@@ -761,156 +740,16 @@ with st.sidebar:
     )
 
     st.markdown("---")
-    st.markdown("### 💾 Сохранение прогноза")
-    save_btn = st.button(
-        "💾 Сохранить текущий прогноз",
-        type="secondary",
-        use_container_width=True,
-    )
 
-    if save_btn:
-        if "last_forecast" not in st.session_state:
-            st.warning("Сначала соберите прогноз кнопкой «Собрать».")
-        else:
-            try:
-                lf = st.session_state["last_forecast"]
-                date_str = lf["date"]
-
-                def _to_raw(records, precip_key="precip_mm"):
-                    out = []
-                    for r in records:
-                        out.append({
-                            "time": r.get("time", ""),
-                            "temp": r.get("temp"),
-                            "precip_mm": r.get(precip_key),
-                        })
-                    return out
-
-                sources_raw = {
-                    "yr.no": _to_raw(lf["yr_data"], "precip_mm"),
-                    "meteoblue": _to_raw(lf["mb_data"], "precip"),
-                    "Open-Meteo": _to_raw(lf["om_data"], "precip_mm"),
-                }
-
-                horizons_data = {}
-                for h in [24, 36, 60]:
-                    text = lf["horizons_text"][str(h)]
-                    horizons_data[str(h)] = {
-                        "t_avg": extract_number(text, r"Средняя(?:\s*\(взвеш\.\))?:\s*\*{0,2}([+\-]?[\d.,]+)°C"),
-                        "t_min": extract_number(text, r"Минимум:\s*\*{0,2}([+\-]?[\d.,]+)°C"),
-                        "t_max": extract_number(text, r"Максимум:\s*\*{0,2}([+\-]?[\d.,]+)°C"),
-                        "precip_total": extract_number(text, r"Всего за [\d–]+ч(?:\s*\(консерв\.\))?:\s*\*{0,2}([\d.,]+)\s*мм"),
-                    }
-
-                save_forecast(date_str, horizons_data, sources_raw)
-                st.success(f"💾 Прогноз за {date_str} сохранён.")
-            except Exception as e:
-                st.error(f"Ошибка сохранения: {e}")
-
-    today = datetime.now().strftime("%Y-%m-%d")
-    try:
-        versions = get_saved_versions(today)
-    except Exception:
-        versions = []
-
-    if versions:
-        st.caption(f"📦 Сохранено версий за сегодня: **{len(versions)}**")
-        with st.expander("Показать версии", expanded=False):
-            for i, v in enumerate(versions, 1):
-                try:
-                    t = datetime.fromisoformat(v["saved_at"]).strftime("%H:%M")
-                    st.markdown(f"**{i}.** сохранён в **{t}**")
-                except Exception:
-                    st.markdown(f"**{i}.** {v.get('saved_at', '—')}")
-    else:
-        st.caption("📦 Версий за сегодня ещё нет")
-
-    st.markdown("---")
-    st.markdown("### 📥 История")
-
-    load_facts_btn = st.button(
-        "📥 Загрузить факты из facts/",
-        use_container_width=True,
-    )
-    if load_facts_btn:
-        n = load_facts_from_folder(force_reload=True)
-        if n > 0:
-            st.success(f"Обработано файлов: {n}")
-        else:
-            st.info("Новых файлов нет.")
-
-    st.markdown("**Порог снега:**")
-    st.slider(
-        "Порог оповещения, см",
-        min_value=5, max_value=100, value=_default_snow_cm, step=5,
-        key="snow_threshold_cm",
-        help="При достижении этой суммы свежего снега появится предупреждение.",
-    )
-    st.caption(
-        f"Текущий порог: **{st.session_state.get('snow_threshold_cm', _default_snow_cm)} см**"
-    )
-
-    st.markdown("**Влияние при калибровке:**")
-    col_t, col_p = st.columns(2)
-    with col_t:
-        temp_w = st.slider(
-            "Температура, %",
-            min_value=0, max_value=100, value=_default_t, step=5,
-            key="temp_w_slider",
-        )
-    with col_p:
-        precip_w = st.slider(
-            "Осадки, %",
-            min_value=0, max_value=100, value=_default_p, step=5,
-            key="precip_w_slider",
-        )
-
-    total_w = temp_w + precip_w
-    if total_w == 0:
-        st.warning("⚠️ Хотя бы один вес должен быть > 0.")
-    else:
-        norm_t = temp_w / total_w
-        norm_p = precip_w / total_w
-        st.caption(
-            f"Итог: **{norm_t*100:.0f}%** на T · **{norm_p*100:.0f}%** на осадки"
-        )
-
-        calibrate_btn = st.button(
-            "🔄 Пересчитать веса",
-            use_container_width=True,
-        )
-        if calibrate_btn:
-            weights = recalibrate_weights(
-                temp_weight=norm_t,
-                precip_weight=norm_p,
-            )
-            try:
-                if os.path.exists(_w_path):
-                    with open(_w_path, "r", encoding="utf-8") as f:
-                        _wd = json.load(f)
-                else:
-                    _wd = {}
-                _wd["temp_weight"] = norm_t
-                _wd["precip_weight"] = norm_p
-                _wd["snow_threshold_cm"] = int(
-                    st.session_state.get("snow_threshold_cm", _default_snow_cm)
-                )
-                with open(_w_path, "w", encoding="utf-8") as f:
-                    json.dump(_wd, f, ensure_ascii=False, indent=2)
-            except Exception as e:
-                st.warning(f"Не удалось сохранить настройки: {e}")
-
-            if weights:
-                st.success(f"Веса обновлены: {weights}")
-            else:
-                st.warning("Недостаточно данных (нужно 3+ дня фактов)")
-
+    # --- Строка с весами ---
     w_yr, w_mb, w_om = load_weights()
     st.caption(
         f"Веса: yr.no {w_yr:.2f} · meteoblue {w_mb:.2f} · Open-Meteo {w_om:.2f}"
     )
 
     st.markdown("---")
+
+    # --- Точка прогноза ---
     st.markdown("### 📍 Точка прогноза")
     st.markdown(f"**{CONFIG['location_name']}**")
     st.caption(
@@ -918,7 +757,10 @@ with st.sidebar:
         f"Долгота: {CONFIG['lon']}°\n\n"
         f"Высота: {CONFIG['altitude']} м"
     )
+
     st.markdown("---")
+
+    # --- Источники ---
     st.markdown("### 📡 Источники")
     st.markdown(
         "- **yr.no** — MET Norway, 1 км\n"
@@ -927,8 +769,6 @@ with st.sidebar:
         "- **meteoinfo** — карты Гидрометцентра\n"
         "- **Gemini** — синоптический анализ"
     )
-    st.markdown("---")
-    st.caption(f"Обновлено: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
 
 
 # ============================================================
@@ -1043,8 +883,7 @@ if st.session_state.get("run"):
             },
         }
         st.caption(
-            "💡 Прогноз готов. Чтобы сохранить в историю, нажмите "
-            "**«💾 Сохранить текущий прогноз»** в боковой панели."
+            "💡 Прогноз готов."
         )
 
         st.markdown("---")
@@ -1130,9 +969,7 @@ if st.session_state.get("run"):
             if not report or all(r["n"] == 0 for r in report.values()):
                 st.info(
                     "ℹ️ Нет данных для отчёта. "
-                    "Положите CSV со станции в папку `facts/` и нажмите "
-                    "«📥 Загрузить факты» в боковой панели. "
-                    "Нужно 3+ дня фактов для значимого отчёта."
+                    "Положите CSV со станции в папку `facts/`."
                 )
             else:
                 for src, data in report.items():
@@ -1151,7 +988,7 @@ if st.session_state.get("run"):
         with st.expander("📅 Когда были осадки (по факту)", expanded=False):
             facts_path = "history/facts.json"
             if not os.path.exists(facts_path):
-                st.info("Нет данных о фактах. Загрузите CSV через боковую панель.")
+                st.info("Нет данных о фактах.")
             else:
                 try:
                     with open(facts_path, "r", encoding="utf-8") as f:
