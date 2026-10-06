@@ -28,3 +28,6 @@ Thumbs.db
 Desktop.ini
 .vscode/
 .idea/
+# Обрезанные карты (генерируются автоматически)
+*_cropped.jpg
+.env.*
