@@ -3,8 +3,11 @@
 Анализ синоптических карт Гидрометцентра через Gemini API.
 Обрезает карту под Кавказ, отправляет в Gemini, получает описание.
 
-Работает через SOCKS5-прокси (v2rayN) — обход геоблокировки Google
-для российских IP.
+Работает в двух режимах:
+  * Локально (Россия): задай переменную окружения GEMINI_PROXY
+    (например, socks5h://127.0.0.1:10808 от v2rayN) — обход геоблокировки.
+  * На облаке (Streamlit Cloud, Hugging Face, VPS за рубежом):
+    переменную GEMINI_PROXY НЕ задавай — запросы идут напрямую.
 
 ВАЖНО: карты российские (meteoinfo.ru), поэтому используются
 российские обозначения барических образований:
@@ -24,24 +27,31 @@ import random
 from PIL import Image
 import httpx
 
+# Опциональная поддержка .env — если установлен python-dotenv.
+# Локально можно положить файл .env рядом с проектом и хранить там
+# GEMINI_PROXY=... (не коммитить в Git!).
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # Если python-dotenv не установлен — не страшно, просто не читаем .env.
+    pass
+
 
 # ============================================================
-# Прокси (SOCKS5 из v2rayN)
+# Прокси (опционально)
 # ============================================================
-# Если v2rayN слушает на другом порту — поменяй здесь.
-# Значение "socks5h://" — DNS через прокси, важно для обхода геоблокировки.
-PROXY_URL = "socks5h://127.0.0.1:10808"
+# Локально (Россия):   set GEMINI_PROXY=socks5h://127.0.0.1:10808
+#                      (или положи в .env — файл не коммитить!)
+# На облаке:           переменную НЕ задавай → PROXY_URL = ""
+#
+# "socks5h://" — DNS тоже через прокси, важно для обхода блокировки.
+PROXY_URL = os.environ.get("GEMINI_PROXY", "").strip()
 
 
 # ============================================================
 # Модель Gemini
 # ============================================================
-#  Модель из доступных в твоём аккаунте (см. /v1beta/models).
-#  Варианты (vision + generateContent):
-#    - gemini-3.5-flash-lite  ← используется (500 RPD, 15 RPM)
-#    - gemini-3.5-flash
-#    - gemini-flash-latest
-#    - gemini-2.5-flash
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
     "gemini-3.5-flash-lite:generateContent"
@@ -165,22 +175,32 @@ def _crop_map_to_caucasus(image_path: str) -> str:
 
 
 # ============================================================
-# POST через SOCKS5-прокси (httpx)
+# POST с опциональным SOCKS5-прокси и retry
 # ============================================================
 def _post_with_retry(url, headers, data, timeout=180, max_attempts=4):
     """
-    POST через SOCKS5-прокси с retry.
+    POST с опциональным прокси и retry.
     429 → 10/20/40 сек, 503 → 5/10/20/40 сек + джиттер.
+    Если PROXY_URL пустой — запрос идёт напрямую (для облака).
     """
     last_error = None
 
-    # Транспорт httpx с SOCKS5-прокси.
-    # socks5h:// — DNS тоже через прокси (важно для обхода блокировки).
-    transport = httpx.HTTPTransport(proxy=PROXY_URL, retries=0)
+    if PROXY_URL:
+        print(f"[map_analyzer] используем прокси: {PROXY_URL}")
+    else:
+        print("[map_analyzer] прокси не задан — прямое подключение")
 
     for attempt in range(1, max_attempts + 1):
         try:
-            with httpx.Client(transport=transport, timeout=timeout) as client:
+            # Транспорт создаётся заново на каждой попытке —
+            # это надёжнее при обрывах соединения.
+            if PROXY_URL:
+                transport = httpx.HTTPTransport(proxy=PROXY_URL, retries=0)
+                client = httpx.Client(transport=transport, timeout=timeout)
+            else:
+                client = httpx.Client(timeout=timeout)
+
+            with client:
                 response = client.post(url, headers=headers, content=data)
 
             if response.status_code == 429:
@@ -224,7 +244,7 @@ def analyze_map_with_gemini(image_path: str, api_key: str, lat: float,
                             lon: float, altitude: int,
                             use_cache: bool = True) -> str:
     """
-    Обрезает карту под Кавказ и отправляет в Gemini (через прокси).
+    Обрезает карту под Кавказ и отправляет в Gemini.
     Если файл уже анализировался (тот же хеш) и use_cache=True —
     возвращает сохранённый текст без обращения к API.
     """
@@ -243,7 +263,7 @@ def analyze_map_with_gemini(image_path: str, api_key: str, lat: float,
         return cached.get("text", "")
 
     print(f"[map_analyzer] CACHE MISS — {os.path.basename(image_path)}, "
-          f"запрос к Gemini через прокси...")
+          f"запрос к Gemini...")
 
     # 3. Читаем и кодируем в base64
     with open(cropped_path, "rb") as f:
@@ -348,6 +368,8 @@ def clear_cache():
     if os.path.exists(CACHE_FILE):
         os.remove(CACHE_FILE)
         print("[map_analyzer] Кэш очищен")
+    else:
+        print("[map_analyzer] Кэш уже пуст")
 
 
 # ============================================================
