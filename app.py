@@ -675,42 +675,18 @@ def render_multi_source_charts(df):
 
 
 # ============================================================
-# Читаем настройки UI из weights.json
-# ============================================================
-_w_path = os.path.join("history", "weights.json")
-_default_t = 70
-_default_p = 30
-_default_snow_cm = 25
-
-if os.path.exists(_w_path):
-    try:
-        with open(_w_path, "r", encoding="utf-8") as _f:
-            _wdata = json.load(_f)
-        _tw = _wdata.get("temp_weight")
-        _pw = _wdata.get("precip_weight")
-        _sc = _wdata.get("snow_threshold_cm")
-        if _tw is not None and _pw is not None:
-            _default_t = int(round(_tw * 100))
-            _default_p = int(round(_pw * 100))
-        if _sc is not None:
-            _default_snow_cm = int(_sc)
-    except Exception:
-        pass
-
-
-# ============================================================
 # Боковая панель (сокращённая)
 # ============================================================
 with st.sidebar:
-    # --- Заглушки, чтобы код ниже в app.py не сломался ---
+    # --- Заглушки, чтобы код ниже не сломался ---
     save_btn = False
     load_facts_btn = False
     calibrate_btn = False
-    temp_w = _default_t
-    precip_w = _default_p
-    norm_t, norm_p = _default_t / 100.0, _default_p / 100.0
-    total_w = _default_t + _default_p
-    st.session_state["snow_threshold_cm"] = _default_snow_cm
+    temp_w = 70
+    precip_w = 30
+    norm_t, norm_p = 0.7, 0.3
+    total_w = 100
+    st.session_state["snow_threshold_cm"] = 25
 
     # --- Переключатель темы ---
     st.markdown("### 🎨 Тема")
@@ -882,9 +858,6 @@ if st.session_state.get("run"):
                 str(h): result["forecast"][f"{h}h"] for h in [24, 36, 60]
             },
         }
-        st.caption(
-            "💡 Прогноз готов."
-        )
 
         st.markdown("---")
         st.markdown("## 📊 Прогноз на 24 / 36 / 60 часов")
@@ -969,7 +942,9 @@ if st.session_state.get("run"):
             if not report or all(r["n"] == 0 for r in report.values()):
                 st.info(
                     "ℹ️ Нет данных для отчёта. "
-                    "Положите CSV со станции в папку `facts/`."
+                    "Положите CSV со станции в папку `facts/` и нажмите "
+                    "«📥 Загрузить факты» в боковой панели. "
+                    "Нужно 3+ дня фактов для значимого отчёта."
                 )
             else:
                 for src, data in report.items():
@@ -988,7 +963,7 @@ if st.session_state.get("run"):
         with st.expander("📅 Когда были осадки (по факту)", expanded=False):
             facts_path = "history/facts.json"
             if not os.path.exists(facts_path):
-                st.info("Нет данных о фактах.")
+                st.info("Нет данных о фактах. Загрузите CSV через боковую панель.")
             else:
                 try:
                     with open(facts_path, "r", encoding="utf-8") as f:
