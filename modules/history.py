@@ -593,7 +593,7 @@ def recalibrate_weights(days=None, temp_weight=0.7, precip_weight=0.3):
     return weights
 
 
-def load_weights(default=(0.60, 0.25, 0.15)):
+def load_weights(default=(0.29, 0.38, 0.33)):
     """Возвращает кортеж весов (yr.no, meteoblue, Open-Meteo)."""
     if not os.path.exists(WEIGHTS_FILE):
         return default
