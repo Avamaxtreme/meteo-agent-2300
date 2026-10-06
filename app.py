@@ -18,10 +18,32 @@ from modules.history import (
 )
 
 # ============================================================
-# Конфиг
+# Конфиг (локально — из файла, в облаке — из Streamlit Secrets)
 # ============================================================
-with open("config.json", "r", encoding="utf-8") as f:
-    CONFIG = json.load(f)
+if os.path.exists("config.json"):
+    with open("config.json", "r", encoding="utf-8") as f:
+        CONFIG = json.load(f)
+else:
+    # В облаке читаем из Streamlit Secrets.
+    # Задайте их в share.streamlit.io → Settings → Secrets в формате TOML.
+    try:
+        CONFIG = {
+            "location_name": st.secrets.get("location_name", "Горная Карусель"),
+            "lat": st.secrets.get("lat", 43.6418),
+            "lon": st.secrets.get("lon", 40.2628),
+            "altitude": st.secrets.get("altitude", 2300),
+            "meteoblue_api_key": st.secrets.get("meteoblue_api_key", ""),
+            "gemini_api_key": st.secrets.get("gemini_api_key", ""),
+        }
+    except Exception:
+        CONFIG = {
+            "location_name": "Горная Карусель",
+            "lat": 43.6418,
+            "lon": 40.2628,
+            "altitude": 2300,
+            "meteoblue_api_key": "",
+            "gemini_api_key": "",
+        }
 
 st.set_page_config(
     page_title="Метео-агент 2300м",
