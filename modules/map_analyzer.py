@@ -3,9 +3,13 @@
 Анализ синоптических карт Гидрометцентра через Gemini API.
 Обрезает карту под Кавказ, отправляет в Gemini, получает описание.
 
-Прокси (SOCKS5) — опционально. Локально в России нужен v2rayN
-для обхода геоблокировки Google. На зарубежном сервере
-(Streamlit Cloud, Hugging Face) прокси НЕ нужен.
+Работает через SOCKS5-прокси (v2rayN) — обход геоблокировки Google
+для российских IP.
+
+ВАЖНО: карты российские (meteoinfo.ru), поэтому используются
+российские обозначения барических образований:
+  В — антициклон (высокое давление)
+  Н — циклон (низкое давление)
 
 Кэш: результат для каждой карты сохраняется в
 `history/map_analysis_cache.json` и переиспользуется, пока не изменится
@@ -22,21 +26,18 @@ import httpx
 
 
 # ============================================================
-# Прокси (только для локальной работы из России)
+# Прокси (SOCKS5 из v2rayN)
 # ============================================================
-# Локально: задай переменную окружения GEMINI_PROXY:
-#   Windows (cmd):  set GEMINI_PROXY=socks5h://127.0.0.1:10808
-#   Linux/macOS:    export GEMINI_PROXY=socks5h://127.0.0.1:10808
-#
-# На Streamlit Cloud / Hugging Face — НЕ задавай.
-# Тогда запросы пойдут напрямую с зарубежного IP.
-PROXY_URL = os.environ.get("GEMINI_PROXY", "").strip()
+# Если v2rayN слушает на другом порту — поменяй здесь.
+# Значение "socks5h://" — DNS через прокси, важно для обхода геоблокировки.
+PROXY_URL = "socks5h://127.0.0.1:10808"
 
 
 # ============================================================
 # Модель Gemini
 # ============================================================
-#  Рабочие модели (vision + generateContent):
+#  Модель из доступных в твоём аккаунте (см. /v1beta/models).
+#  Варианты (vision + generateContent):
 #    - gemini-3.5-flash-lite  ← используется (500 RPD, 15 RPM)
 #    - gemini-3.5-flash
 #    - gemini-flash-latest
@@ -64,9 +65,9 @@ PROMPT_TEMPLATE = """Ты — профессиональный синоптик 
 На карте эта точка — в районе Сочи, на восточном побережье Чёрного моря.
 
 ===========================================================
-СПРАВОЧНИК СИМВОЛОВ:
+СПРАВОЧНИК СИМВОЛОВ (российский стандарт):
 ===========================================================
-- H — антициклон (высокое давление), L — циклон (низкое давление)
+- В — антициклон (высокое давление), Н — циклон (низкое давление)
 - Замкнутые изобары (концентрические линии) — центры циклонов/антициклонов
 - Сгущение изобар — сильный ветер
 - Линия с КРАСНЫМИ ПОЛУКРУГАМИ — тёплый фронт
@@ -84,6 +85,8 @@ PROMPT_TEMPLATE = """Ты — профессиональный синоптик 
 
 1. Где расположены циклоны и антициклоны относительно Чёрного моря
    и Кавказа, куда смещаются.
+   ВАЖНО: буква «В» на этой карте — это АНТИЦИКЛОН,
+   буква «Н» — это ЦИКЛОН. Не путай их.
 
 2. Какие фронты видны на фрагменте, где проходят относительно Сочи
    (в каком направлении от точки), и приближаются или удаляются.
@@ -162,28 +165,22 @@ def _crop_map_to_caucasus(image_path: str) -> str:
 
 
 # ============================================================
-# POST с retry
+# POST через SOCKS5-прокси (httpx)
 # ============================================================
 def _post_with_retry(url, headers, data, timeout=180, max_attempts=4):
     """
-    POST с retry. Если PROXY_URL задан — идёт через SOCKS5-прокси,
-    иначе — напрямую (для зарубежного хостинга).
+    POST через SOCKS5-прокси с retry.
     429 → 10/20/40 сек, 503 → 5/10/20/40 сек + джиттер.
     """
     last_error = None
 
-    # Настраиваем клиент один раз: с прокси или без
-    if PROXY_URL:
-        transport = httpx.HTTPTransport(proxy=PROXY_URL, retries=0)
-        client_kwargs = {"transport": transport, "timeout": timeout}
-        print(f"[map_analyzer] Используется прокси: {PROXY_URL}")
-    else:
-        client_kwargs = {"timeout": timeout}
-        print("[map_analyzer] Прямое подключение (без прокси)")
+    # Транспорт httpx с SOCKS5-прокси.
+    # socks5h:// — DNS тоже через прокси (важно для обхода блокировки).
+    transport = httpx.HTTPTransport(proxy=PROXY_URL, retries=0)
 
     for attempt in range(1, max_attempts + 1):
         try:
-            with httpx.Client(**client_kwargs) as client:
+            with httpx.Client(transport=transport, timeout=timeout) as client:
                 response = client.post(url, headers=headers, content=data)
 
             if response.status_code == 429:
@@ -227,7 +224,7 @@ def analyze_map_with_gemini(image_path: str, api_key: str, lat: float,
                             lon: float, altitude: int,
                             use_cache: bool = True) -> str:
     """
-    Обрезает карту под Кавказ и отправляет в Gemini.
+    Обрезает карту под Кавказ и отправляет в Gemini (через прокси).
     Если файл уже анализировался (тот же хеш) и use_cache=True —
     возвращает сохранённый текст без обращения к API.
     """
@@ -246,7 +243,7 @@ def analyze_map_with_gemini(image_path: str, api_key: str, lat: float,
         return cached.get("text", "")
 
     print(f"[map_analyzer] CACHE MISS — {os.path.basename(image_path)}, "
-          f"запрос к Gemini...")
+          f"запрос к Gemini через прокси...")
 
     # 3. Читаем и кодируем в base64
     with open(cropped_path, "rb") as f:
@@ -325,7 +322,8 @@ def analyze_all_maps(image_paths: list, api_key: str, lat: float,
                      lon: float, altitude: int) -> str:
     """
     Анализирует несколько карт и объединяет описания.
-    Между запросами — пауза 15 сек (чтобы не упереться в 5 RPM).
+    Между запросами к API — пауза 15 сек (чтобы не упереться в 5 RPM).
+    Если карта есть в кэше — пауза не нужна.
     """
     descriptions = []
     for i, path in enumerate(image_paths, 1):
